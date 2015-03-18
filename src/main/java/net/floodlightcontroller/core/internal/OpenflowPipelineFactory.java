@@ -100,44 +100,22 @@ implements ChannelPipelineFactory, ExternalResourceReleasable {
 				debugCounters,
 				timer);
 
-		if (keyStore != null && keyStorePassword != null) {
-			try {
-				/* Set up factories and stores. */
-				TrustManagerFactory tmFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-				KeyStore tmpKS = null;
-				tmFactory.init(tmpKS);
-
-				/* Use keystore/pass defined in properties file. */
-				KeyStore ks = KeyStore.getInstance("JKS");
-				ks.load(new FileInputStream(keyStore), keyStorePassword.toCharArray());
-
-				KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-				kmf.init(ks, keyStorePassword.toCharArray());
-
-				KeyManager[] km = kmf.getKeyManagers();
-				TrustManager[] tm = tmFactory.getTrustManagers();
-
-				/* Set up SSL prereqs for Netty. */
-				SSLContext sslContext = SSLContext.getInstance("TLS");
-				sslContext.init(km, tm, null);
-				SSLEngine sslEngine = sslContext.createSSLEngine();
-
-				/* We are the server and we will create secure sessions. */
-				sslEngine.setUseClientMode(false);
-				sslEngine.setEnableSessionCreation(true);
-
-				/* These are redundant (default), but for clarity... */
-				sslEngine.setEnabledProtocols(sslEngine.getSupportedProtocols()); 
-				sslEngine.setEnabledCipherSuites(sslEngine.getSupportedCipherSuites());
-				
-				/* First, decrypt w/handler+engine; then, proceed with rest of handlers. */
-				pipeline.addLast(PipelineHandler.SSL_TLS_ENCODER_DECODER, new SslHandler(sslEngine));
-				log.info("SSL OpenFlow socket initialized and handler ready for switch.");
-			} catch (Exception e) { /* There are lots of possible exceptions to catch, so this should get them all. */
-				log.error("Exception initializing SSL OpenFlow socket: {}", e.getMessage());
-				throw e; /* If we wanted secure but didn't get it, we should bail. */
-			}
-		}
+	        /* if switch connection is desired in SSL mode, then add the
+        	 * SSLHandler for handling of SSL messages
+         	*/
+        	if(SecurechannelHandler.secureStatus.equals("true"))
+        	{
+           		handler=new SecurechannelHandler(switchManager,
+                                            connectionListener,
+                                            pipeline,
+                                            debugCounters,
+                                            timer);    
+            
+           		SSLEngine engine =
+         	   		SecurechannelHandler.getServerContext().createSSLEngine();
+           		engine.setUseClientMode(false);
+     	  	pipeline.addLast("ssl", new SslHandler(engine));   
+        	}
 
 		/* SSL handler will have been added first if we're using it. */
 		pipeline.addLast(PipelineHandler.OF_MESSAGE_DECODER,
